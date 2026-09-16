@@ -69,7 +69,12 @@
           <div class="hero-visual"><div class="score-ring"><strong id="heroScore">—</strong><span>平均品質</span></div><div class="float-card c1">✓ 規則檢核</div><div class="float-card c2">✦ AI 語意分析</div><div class="float-card c3">⏱ 回收監測</div></div>
         </div>
         <div class="stats"><article><span>本期回收</span><strong id="statResponses">0</strong><small>份回覆</small></article><article><span>平均品質分數</span><strong id="statScore">—</strong><small>0–100 分</small></article><article><span>需人工複核</span><strong id="statReview">0</strong><small>異常回覆</small></article><article><span>文字回饋</span><strong id="statText">0</strong><small>則開放式回答</small></article></div>
-        <div class="panel"><div class="panel-head"><div><span class="kicker">DETECTION LOGIC</span><h3>填答品質辨識機制</h3></div><span class="status">● 運作中</span></div><div class="logic-grid"><div><b>01</b><h4>Speeding</h4><p>偵測異常過短的完成時間。</p></div><div><b>02</b><h4>Straight-lining</h4><p>辨識大量題目選擇相同答案。</p></div><div><b>03</b><h4>Low Variance</h4><p>計算量表答案是否缺乏合理變化。</p></div><div><b>04</b><h4>Consistency</h4><p>比較正向與反向題的一致性。</p></div><div><b>05</b><h4>Text Relevance</h4><p>檢查開放式回答的基本品質。</p></div><div><b>06</b><h4>Review Flag</h4><p>多項異常才標記人工複核。</p></div></div></div>
+        <div class="insight-layout">
+<div class="panel"><div class="panel-head"><div><span class="kicker">LIVE FEEDBACK INSIGHTS</span><h3>即時回饋趨勢</h3></div><span class="status">● 即時整理</span></div>
+<div id="trendSummary" class="trend-summary"></div></div>
+<div class="panel"><div class="panel-head"><div><span class="kicker">RESPONSE DISTRIBUTION</span><h3>量化題統計</h3></div><select id="dashboardSurveyFilter" onchange="renderDashboardInsights()"><option value="all">全部問卷</option><option value="student-course">學生課程回饋</option><option value="teacher-admin">教師行政回饋</option></select></div><div id="likertSummary"></div></div>
+</div>
+<div class="panel"><div class="panel-head"><div><span class="kicker">DETECTION LOGIC</span><h3>填答品質辨識機制</h3></div><span class="status">● 運作中</span></div><div class="logic-grid"><div><b>01</b><h4>Speeding</h4><p>偵測異常過短的完成時間。</p></div><div><b>02</b><h4>Straight-lining</h4><p>辨識大量題目選擇相同答案。</p></div><div><b>03</b><h4>Low Variance</h4><p>計算量表答案是否缺乏合理變化。</p></div><div><b>04</b><h4>Consistency</h4><p>比較正向與反向題的一致性。</p></div><div><b>05</b><h4>Text Relevance</h4><p>檢查開放式回答的基本品質。</p></div><div><b>06</b><h4>Review Flag</h4><p>多項異常才標記人工複核。</p></div></div></div>
       </section>
 
       <section id="surveyManagement" class="page">
