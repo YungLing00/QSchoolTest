@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QSchool｜學生回饋問卷</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">Q</div><div><strong>QSchool</strong><span>學生回饋平台</span></div></div>
+      <nav>
+        <button class="nav-item active" data-page="dashboard">⌂ <span>總覽</span></button>
+        <button class="nav-item" data-page="survey">✎ <span>填寫問卷</span></button>
+        <button class="nav-item" data-page="analysis">✦ <span>AI 品質分析</span></button>
+        <button class="nav-item" data-page="responses">▤ <span>回饋紀錄</span></button>
+      </nav>
+      <div class="sidebar-note"><span class="dot"></span><div><b>AI Quality Engine</b><small>規則引擎已啟用</small></div></div>
+    </aside>
+
+    <main>
+      <header>
+        <div><p class="eyebrow">校務系統 · 課程回饋</p><h1 id="pageTitle">問卷總覽</h1></div>
+        <div class="user"><div class="avatar">YL</div><div><b>系統管理員</b><small>Academic Affairs</small></div></div>
+      </header>
+
+      <section id="dashboard" class="page active">
+        <div class="hero">
+          <div><span class="pill">AI-ASSISTED QUALITY CHECK</span><h2>讓每一份學生回饋<br>都更值得被理解。</h2><p>結合統計規則與語意分析，協助辨識異常填答、低品質文字與前後不一致的回覆。</p><button class="primary" onclick="goTo('survey')">開始填寫示範問卷 →</button></div>
+          <div class="hero-visual"><div class="score-ring"><strong>92</strong><span>品質分數</span></div><div class="float-card c1">✓ 作答一致性</div><div class="float-card c2">✦ 語意相關性</div><div class="float-card c3">⏱ 填答時間</div></div>
+        </div>
+        <div class="stats">
+          <article><span>本期回收</span><strong id="statResponses">0</strong><small>份有效回覆</small></article>
+          <article><span>平均品質分數</span><strong id="statScore">—</strong><small>0–100 分</small></article>
+          <article><span>需人工複核</span><strong id="statReview">0</strong><small>異常回覆</small></article>
+          <article><span>AI 文字分析</span><strong id="statText">0</strong><small>則開放式意見</small></article>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><span class="kicker">DETECTION LOGIC</span><h3>填答品質辨識機制</h3></div><span class="status">● 運作中</span></div>
+          <div class="logic-grid">
+            <div><b>01</b><h4>Speeding</h4><p>偵測異常過短的完成時間。</p></div>
+            <div><b>02</b><h4>Straight-lining</h4><p>辨識大量題目選擇相同答案。</p></div>
+            <div><b>03</b><h4>Low Variance</h4><p>計算量表答案是否缺乏合理變化。</p></div>
+            <div><b>04</b><h4>Consistency</h4><p>比較正向與反向題的回答一致性。</p></div>
+            <div><b>05</b><h4>Text Relevance</h4><p>分析開放式回答是否具體且切題。</p></div>
+            <div><b>06</b><h4>Review Flag</h4><p>多項異常才標記為人工複核。</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="survey" class="page">
+        <div class="survey-layout">
+          <div class="survey-main panel">
+            <div class="survey-top"><span class="kicker">COURSE EVALUATION</span><h2>互動設計概論｜期末課程回饋</h2><p>請依照本學期實際修課經驗作答。所有資料僅供課程改善與教學分析使用。</p></div>
+            <form id="surveyForm">
+              <div id="questions"></div>
+              <div class="form-actions"><button type="button" class="ghost" onclick="resetSurvey()">清除</button><button type="submit" class="primary">送出問卷</button></div>
+            </form>
+          </div>
+          <aside class="progress-card"><span>填答進度</span><strong id="progressText">0 / 8</strong><div class="progress"><i id="progressBar"></i></div><p>請完成所有必填題目後送出。</p></aside>
+        </div>
+      </section>
+
+      <section id="analysis" class="page">
+        <div class="analysis-header"><div><span class="kicker">RESPONSE QUALITY ENGINE</span><h2>AI 填答品質分析</h2><p>系統呈現可解釋的異常指標，不直接判定學生是否「認真」。</p></div><select id="analysisSelect"></select></div>
+        <div id="analysisEmpty" class="empty panel"><div>✦</div><h3>尚無可分析資料</h3><p>先完成一份示範問卷，即可查看品質分析結果。</p><button class="primary" onclick="goTo('survey')">前往填寫</button></div>
+        <div id="analysisContent" class="hidden">
+          <div class="quality-overview panel">
+            <div class="quality-score"><div class="score-ring small"><strong id="qualityScore">0</strong><span>品質分數</span></div></div>
+            <div class="quality-copy"><span id="qualityBadge" class="quality-badge"></span><h3 id="qualityTitle"></h3><p id="qualitySummary"></p></div>
+          </div>
+          <div id="indicators" class="indicator-grid"></div>
+          <div class="panel"><div class="panel-head"><div><span class="kicker">OPEN-ENDED ANALYSIS</span><h3>文字回饋分析</h3></div><span class="ai-tag">AI READY</span></div><div id="textAnalysis"></div></div>
+        </div>
+      </section>
+
+      <section id="responses" class="page">
+        <div class="panel"><div class="panel-head"><div><span class="kicker">RESPONSE HISTORY</span><h3>回饋紀錄</h3></div><button class="ghost danger" onclick="clearResponses()">清除示範資料</button></div>
+        <div class="table-wrap"><table><thead><tr><th>編號</th><th>送出時間</th><th>填答秒數</th><th>品質分數</th><th>狀態</th></tr></thead><tbody id="responseRows"></tbody></table></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
