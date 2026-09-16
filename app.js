@@ -1,84 +1,23 @@
-const QUESTIONS=[
- {id:"q1",text:"教師能清楚說明課程內容與學習目標。",type:"likert",dimension:"teaching_clarity",direction:"positive"},
- {id:"q2",text:"課程內容能幫助我理解互動設計的核心概念。",type:"likert",dimension:"learning_value",direction:"positive"},
- {id:"q3",text:"課堂活動與作業能促進我的實際應用能力。",type:"likert",dimension:"practical_learning",direction:"positive"},
- {id:"q4",text:"我在課程中經常不知道老師正在說明什麼。",type:"likert",dimension:"teaching_clarity",direction:"negative"},
- {id:"q5",text:"教師願意回應學生的問題與意見。",type:"likert",dimension:"teacher_interaction",direction:"positive"},
- {id:"q6",text:"整體而言，我對本課程的學習經驗感到滿意。",type:"likert",dimension:"overall_satisfaction",direction:"positive"},
- {id:"q7",text:"請描述一個本課程中對你最有幫助的部分，並簡單說明原因。",type:"text",dimension:"course_strength"},
- {id:"q8",text:"你認為這門課最需要改善的地方是什麼？",type:"text",dimension:"course_improvement"}
-];
-let startedAt=Date.now();
-
-function renderQuestions(){
- const root=document.getElementById("questions");
- root.innerHTML=QUESTIONS.map((q,i)=>q.type==="likert"?`
- <div class="question"><div class="question-label"><span class="qnum">${String(i+1).padStart(2,"0")}</span><span>${q.text}</span></div>
- <div class="scale">${[1,2,3,4,5].map(v=>`<label><input required type="radio" name="${q.id}" value="${v}"><b>${v}</b><small>${["非常不同意","不同意","普通","同意","非常同意"][v-1]}</small></label>`).join("")}</div></div>`
- :`<div class="question"><div class="question-label"><span class="qnum">${String(i+1).padStart(2,"0")}</span><span>${q.text}</span></div><textarea required name="${q.id}" placeholder="請輸入你的回饋…"></textarea></div>`).join("");
- root.querySelectorAll("input,textarea").forEach(el=>el.addEventListener("input",updateProgress));
-}
-function updateProgress(){
- let done=0; QUESTIONS.forEach(q=>{const el=document.querySelector(`[name="${q.id}"]:checked`)||document.querySelector(`textarea[name="${q.id}"]`);if(el&&el.value.trim())done++});
- document.getElementById("progressText").textContent=`${done} / ${QUESTIONS.length}`;
- document.getElementById("progressBar").style.width=`${done/QUESTIONS.length*100}%`;
-}
-function analyzeResponse(answers,duration){
- const nums=QUESTIONS.filter(q=>q.type==="likert").map(q=>Number(answers[q.id]));
- const counts={};nums.forEach(v=>counts[v]=(counts[v]||0)+1);
- const maxSame=Math.max(...Object.values(counts)); const straight=maxSame/nums.length>=.83;
- const mean=nums.reduce((a,b)=>a+b,0)/nums.length;
- const variance=nums.reduce((s,v)=>s+(v-mean)**2,0)/nums.length;
- const lowVariance=variance<.18;
- const speeding=duration<35;
- const q1=Number(answers.q1),q4=Number(answers.q4);
- const inconsistency=Math.abs(q1-(6-q4))>=3;
- const texts=[answers.q7,answers.q8];
- const junk=/^(無|沒有|不知道|都可以|很好|不錯|讚|ok|test|123|asdf|無意見)[。！! ]*$/i;
- const weakTexts=texts.filter(t=>t.trim().length<8||junk.test(t.trim())).length;
- const textLow=weakTexts>=1;
- const flags=[speeding,straight,lowVariance,inconsistency,textLow].filter(Boolean).length;
- let score=100-(speeding?22:0)-(straight?25:0)-(lowVariance?14:0)-(inconsistency?18:0)-(textLow?15:0);
- score=Math.max(0,score);
- return {score,review:flags>=2,flags,indicators:[
-  {name:"填答時間",en:"Speeding",bad:speeding,detail:speeding?`僅用 ${duration} 秒完成，低於示範門檻 35 秒。`:`完成時間 ${duration} 秒，未觸發過快門檻。`},
-  {name:"直線作答",en:"Straight-lining",bad:straight,detail:straight?`${maxSame}/${nums.length} 題選擇相同選項。`:"量表答案有合理變化。"},
-  {name:"答案變異",en:"Low Variance",bad:lowVariance,detail:`量表變異數為 ${variance.toFixed(2)}。`},
-  {name:"正反題一致性",en:"Consistency",bad:inconsistency,detail:inconsistency?"相同構面的正反向題出現明顯落差。":"正反向題未發現明顯矛盾。"},
-  {name:"文字品質",en:"Text Relevance",bad:textLow,detail:textLow?"至少一則文字過短、空泛或疑似無效。":"文字回答具有基本內容長度。"},
-  {name:"人工複核",en:"Review Flag",bad:flags>=2,detail:flags>=2?`共觸發 ${flags} 項異常，建議人工複核。`:"未達人工複核門檻。"}
- ],text:{responses:texts,mode:"heuristic",note:"目前為本機規則分析；串接 AI API 後可進一步判斷語意相關性、具體程度、主題與矛盾。"}};
-}
-document.getElementById("surveyForm").addEventListener("submit",e=>{
- e.preventDefault();const fd=new FormData(e.target),answers={};QUESTIONS.forEach(q=>answers[q.id]=fd.get(q.id));
- const duration=Math.max(1,Math.round((Date.now()-startedAt)/1000));const analysis=analyzeResponse(answers,duration);
- const data=getResponses();data.unshift({id:Date.now(),createdAt:new Date().toISOString(),duration,answers,analysis});localStorage.setItem("qschool_responses",JSON.stringify(data));
- toast("問卷已送出，品質分析完成");refreshAll();goTo("analysis");
-});
-function getResponses(){try{return JSON.parse(localStorage.getItem("qschool_responses")||"[]")}catch{return[]}}
-function refreshAll(){
- const data=getResponses();document.getElementById("statResponses").textContent=data.length;
- document.getElementById("statScore").textContent=data.length?Math.round(data.reduce((s,r)=>s+r.analysis.score,0)/data.length):"—";
- document.getElementById("statReview").textContent=data.filter(r=>r.analysis.review).length;
- document.getElementById("statText").textContent=data.length*2;
- const sel=document.getElementById("analysisSelect");sel.innerHTML=data.length?data.map((r,i)=>`<option value="${r.id}">回覆 #${data.length-i} · ${new Date(r.createdAt).toLocaleString("zh-TW")}</option>`).join(""):"<option>尚無資料</option>";
- document.getElementById("responseRows").innerHTML=data.length?data.map((r,i)=>`<tr><td>#${data.length-i}</td><td>${new Date(r.createdAt).toLocaleString("zh-TW")}</td><td>${r.duration}s</td><td><b>${r.analysis.score}</b></td><td><span class="${r.analysis.review?"quality-badge warn":"quality-badge ok"}">${r.analysis.review?"建議複核":"品質正常"}</span></td></tr>`).join(""):`<tr><td colspan="5">尚無回饋紀錄</td></tr>`;
- renderAnalysis(data[0]);
-}
-function renderAnalysis(r){
- document.getElementById("analysisEmpty").classList.toggle("hidden",!!r);document.getElementById("analysisContent").classList.toggle("hidden",!r);if(!r)return;
- const a=r.analysis;document.getElementById("qualityScore").textContent=a.score;document.querySelector(".score-ring.small").style.setProperty("--score",a.score+"%");
- const badge=document.getElementById("qualityBadge");badge.textContent=a.review?"建議人工複核":"品質正常";badge.className="quality-badge "+(a.review?"warn":"ok");
- document.getElementById("qualityTitle").textContent=a.review?"偵測到多項需要留意的品質指標":"目前未偵測到重大填答異常";
- document.getElementById("qualitySummary").textContent=a.review?`本回覆觸發 ${a.flags} 項品質指標。系統僅提供異常訊號，最終是否排除資料仍應由管理者依研究規範判斷。`:"本回覆通過目前的規則型品質檢查，可進一步搭配 AI 語意分析文字意見。";
- document.getElementById("indicators").innerHTML=a.indicators.map(x=>`<div class="indicator"><div class="indicator-top"><span class="kicker">${x.en}</span><span class="quality-badge ${x.bad?"warn":"ok"}">${x.bad?"需留意":"正常"}</span></div><h4>${x.name}</h4><p>${x.detail}</p></div>`).join("");
- document.getElementById("textAnalysis").innerHTML=a.text.responses.map((t,i)=>`<div class="text-card" style="margin-bottom:10px"><blockquote>「${escapeHtml(t)}」</blockquote><div class="chips"><span class="chip">回答長度：${t.trim().length} 字</span><span class="chip">本機規則檢查</span><span class="chip">待 AI 語意分析</span></div></div>`).join("")+`<p style="font-size:10px;color:#7b879a">${a.text.note}</p>`;
-}
-document.getElementById("analysisSelect").addEventListener("change",e=>renderAnalysis(getResponses().find(r=>String(r.id)===e.target.value)));
-function goTo(id){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.page===id));document.getElementById("pageTitle").textContent={dashboard:"問卷總覽",survey:"學生課程回饋",analysis:"AI 品質分析",responses:"回饋紀錄"}[id];window.scrollTo(0,0)}
-document.querySelectorAll(".nav-item").forEach(n=>n.onclick=()=>goTo(n.dataset.page));
-function resetSurvey(){document.getElementById("surveyForm").reset();startedAt=Date.now();updateProgress()}
-function clearResponses(){if(confirm("確定清除所有本機示範資料？")){localStorage.removeItem("qschool_responses");refreshAll();toast("示範資料已清除")}}
-function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-renderQuestions();refreshAll();
+const SURVEYS={student:{id:'student-course',title:'互動設計概論｜期末課程回饋',description:'請依照本學期實際修課經驗作答。所有資料僅供課程改善與教學分析使用。',questions:[{id:'q1',text:'教師能清楚說明課程內容與學習目標。',type:'likert',dimension:'teaching_clarity',direction:'positive'},{id:'q2',text:'課程內容能幫助我理解互動設計的核心概念。',type:'likert',dimension:'learning_value',direction:'positive'},{id:'q3',text:'課堂活動與作業能促進我的實際應用能力。',type:'likert',dimension:'practical_learning',direction:'positive'},{id:'q4',text:'我在課程中經常不知道老師正在說明什麼。',type:'likert',dimension:'teaching_clarity',direction:'negative'},{id:'q5',text:'教師願意回應學生的問題與意見。',type:'likert',dimension:'teacher_interaction',direction:'positive'},{id:'q6',text:'整體而言，我對本課程的學習經驗感到滿意。',type:'likert',dimension:'overall_satisfaction',direction:'positive'},{id:'q7',text:'請描述一個本課程中對你最有幫助的部分，並簡單說明原因。',type:'text',dimension:'course_strength'},{id:'q8',text:'你認為這門課最需要改善的地方是什麼？',type:'text',dimension:'course_improvement'}]},teacher:{id:'teacher-admin',title:'教學與行政支援回饋',description:'請依照本學期教學與行政協作經驗作答。',questions:[{id:'q1',text:'本學期行政資訊與重要通知能清楚傳達。',type:'likert',dimension:'admin_clarity',direction:'positive'},{id:'q2',text:'教學所需之系統與資源能支持我的課程運作。',type:'likert',dimension:'teaching_support',direction:'positive'},{id:'q3',text:'遇到問題時，我能獲得適當的行政協助。',type:'likert',dimension:'admin_support',direction:'positive'},{id:'q4',text:'我經常無法掌握行政流程與處理進度。',type:'likert',dimension:'admin_clarity',direction:'negative'},{id:'q5',text:'校務系統操作流程整體而言容易理解。',type:'likert',dimension:'system_usability',direction:'positive'},{id:'q6',text:'整體而言，我對本學期教學支援感到滿意。',type:'likert',dimension:'overall_satisfaction',direction:'positive'},{id:'q7',text:'請描述一項對你最有幫助的教學或行政支援。',type:'text',dimension:'support_strength'},{id:'q8',text:'你認為目前最需要改善的教學或行政流程是什麼？',type:'text',dimension:'support_improvement'}]}};
+let currentRole=null,currentSurvey=null,startedAt=Date.now();
+const pageTitles={frontHome:'前台首頁',survey:'填寫問卷',myHistory:'已完成問卷',adminDashboard:'管理總覽',surveyManagement:'問卷管理',responses:'回覆管理',analysis:'AI 品質分析'};
+function loginAs(role){currentRole=role;document.getElementById('loginView').classList.add('hidden');document.getElementById('appShell').classList.remove('hidden');configureRole();refreshAll();goTo(role==='admin'?'adminDashboard':'frontHome')}
+function logout(){currentRole=null;document.getElementById('appShell').classList.add('hidden');document.getElementById('loginView').classList.remove('hidden')}
+function configureRole(){const admin=currentRole==='admin',teacher=currentRole==='teacher';document.getElementById('brandSubtitle').textContent=admin?'管理後台':'前台入口';document.getElementById('headerEyebrow').textContent=admin?'校務系統 · 管理後台':'校務系統 · 前台';document.getElementById('engineLabel').textContent=admin?'AI Quality Engine':'Questionnaire Service';document.getElementById('engineSub').textContent=admin?'規則引擎已啟用':'服務正常';document.getElementById('userAvatar').textContent=admin?'AD':teacher?'TC':'ST';document.getElementById('userName').textContent=admin?'系統管理員':teacher?'教師':'學生';document.getElementById('userRole').textContent=admin?'Administrator':teacher?'Teacher':'Student';const nav=admin?[['adminDashboard','⌂','管理總覽'],['surveyManagement','▤','問卷管理'],['responses','☷','回覆管理'],['analysis','✦','AI 品質分析']]:[['frontHome','⌂','首頁'],['myHistory','▤','已完成問卷']];document.getElementById('navMenu').innerHTML=nav.map(([id,icon,label],i)=>`<button class="nav-item ${i===0?'active':''}" data-page="${id}">${icon} <span>${label}</span></button>`).join('');document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>goTo(n.dataset.page));if(!admin){document.getElementById('frontHeroTitle').textContent=teacher?'教師您好，歡迎回來。':'同學你好，歡迎回來。';document.getElementById('frontHeroText').textContent=teacher?'查看目前可填寫的教師與校務回饋問卷。':'查看目前可填寫的課程與校務問卷。';renderSurveyCards()}}
+function renderSurveyCards(){const survey=SURVEYS[currentRole];const done=getResponses().some(r=>r.role===currentRole&&r.surveyId===survey.id);document.getElementById('pendingCount').textContent=done?0:1;document.getElementById('surveyCards').innerHTML=`<article class="survey-card"><div><span class="kicker">${currentRole==='teacher'?'TEACHER FEEDBACK':'COURSE FEEDBACK'}</span><h3>${survey.title}</h3><p>${survey.description}</p></div><div class="survey-card-actions"><span class="quality-badge ${done?'ok':'warn'}">${done?'已完成':'待填寫'}</span><button class="primary small" ${done?'disabled':''} onclick="openSurvey()">${done?'已送出':'開始填寫'}</button></div></article>`}
+function openSurvey(){currentSurvey=SURVEYS[currentRole];document.getElementById('surveyTitle').textContent=currentSurvey.title;document.getElementById('surveyDescription').textContent=currentSurvey.description+' 送出後前台不會顯示任何 AI 品質判斷結果。';startedAt=Date.now();renderQuestions();goTo('survey')}
+function renderQuestions(){const qs=(currentSurvey||SURVEYS.student).questions;const root=document.getElementById('questions');root.innerHTML=qs.map((q,i)=>q.type==='likert'?`<div class="question"><div class="question-label"><span class="qnum">${String(i+1).padStart(2,'0')}</span><span>${q.text}</span></div><div class="scale">${[1,2,3,4,5].map(v=>`<label><input required type="radio" name="${q.id}" value="${v}"><b>${v}</b><small>${['非常不同意','不同意','普通','同意','非常同意'][v-1]}</small></label>`).join('')}</div></div>`:`<div class="question"><div class="question-label"><span class="qnum">${String(i+1).padStart(2,'0')}</span><span>${q.text}</span></div><textarea required name="${q.id}" placeholder="請輸入你的回饋…"></textarea></div>`).join('');root.querySelectorAll('input,textarea').forEach(el=>el.addEventListener('input',updateProgress));updateProgress()}
+function updateProgress(){const qs=(currentSurvey||SURVEYS.student).questions;let done=0;qs.forEach(q=>{const el=document.querySelector(`[name="${q.id}"]:checked`)||document.querySelector(`textarea[name="${q.id}"]`);if(el&&String(el.value).trim())done++});document.getElementById('progressText').textContent=`${done} / ${qs.length}`;document.getElementById('progressBar').style.width=`${done/qs.length*100}%`}
+function analyzeResponse(questions,answers,duration){const likert=questions.filter(q=>q.type==='likert'),nums=likert.map(q=>Number(answers[q.id]));const counts={};nums.forEach(v=>counts[v]=(counts[v]||0)+1);const maxSame=Math.max(...Object.values(counts));const straight=maxSame/nums.length>=.83;const mean=nums.reduce((a,b)=>a+b,0)/nums.length;const variance=nums.reduce((s,v)=>s+(v-mean)**2,0)/nums.length;const lowVariance=variance<.18;const speeding=duration<35;const pairs=[];likert.forEach(a=>likert.forEach(b=>{if(a.id!==b.id&&a.dimension===b.dimension&&a.direction!==b.direction&&!pairs.some(p=>p.includes(a.id)&&p.includes(b.id)))pairs.push([a.id,b.id])}));const inconsistency=pairs.some(([a,b])=>Math.abs(Number(answers[a])-(6-Number(answers[b])))>=3);const textQs=questions.filter(q=>q.type==='text');const texts=textQs.map(q=>answers[q.id]||'');const junk=/^(無|沒有|不知道|都可以|很好|不錯|讚|ok|test|123|asdf|無意見)[。！! ]*$/i;const weakTexts=texts.filter(t=>t.trim().length<8||junk.test(t.trim())).length;const textLow=weakTexts>=1;const flags=[speeding,straight,lowVariance,inconsistency,textLow].filter(Boolean).length;let score=100-(speeding?22:0)-(straight?25:0)-(lowVariance?14:0)-(inconsistency?18:0)-(textLow?15:0);score=Math.max(0,score);return{score,review:flags>=2,flags,indicators:[{name:'填答時間',en:'Speeding',bad:speeding,detail:speeding?`僅用 ${duration} 秒完成，低於示範門檻 35 秒。`:`完成時間 ${duration} 秒，未觸發過快門檻。`},{name:'直線作答',en:'Straight-lining',bad:straight,detail:straight?`${maxSame}/${nums.length} 題選擇相同選項。`:'量表答案有合理變化。'},{name:'答案變異',en:'Low Variance',bad:lowVariance,detail:`量表變異數為 ${variance.toFixed(2)}。`},{name:'正反題一致性',en:'Consistency',bad:inconsistency,detail:inconsistency?'相同構面的正反向題出現明顯落差。':'正反向題未發現明顯矛盾。'},{name:'文字品質',en:'Text Relevance',bad:textLow,detail:textLow?'至少一則文字過短、空泛或疑似無效。':'文字回答具有基本內容長度。'},{name:'人工複核',en:'Review Flag',bad:flags>=2,detail:flags>=2?`共觸發 ${flags} 項異常，建議人工複核。`:'未達人工複核門檻。'}],text:{responses:texts,mode:'heuristic',note:'目前為本機規則分析；正式版可由後端 AI API 判斷語意相關性、具體程度、主題與矛盾。'}}}
+document.getElementById('surveyForm').addEventListener('submit',e=>{e.preventDefault();if(!currentSurvey)return;const fd=new FormData(e.target),answers={};currentSurvey.questions.forEach(q=>answers[q.id]=fd.get(q.id));const duration=Math.max(1,Math.round((Date.now()-startedAt)/1000)),analysis=analyzeResponse(currentSurvey.questions,answers,duration),data=getResponses();data.unshift({id:Date.now(),role:currentRole,surveyId:currentSurvey.id,surveyTitle:currentSurvey.title,createdAt:new Date().toISOString(),duration,answers,analysis});localStorage.setItem('qschool_responses',JSON.stringify(data));toast('問卷已成功送出');refreshAll();renderSurveyCards();renderMyHistory();goTo('myHistory')});
+function getResponses(){try{return JSON.parse(localStorage.getItem('qschool_responses')||'[]')}catch{return[]}}
+function renderMyHistory(){if(currentRole==='admin')return;const rows=getResponses().filter(r=>r.role===currentRole);document.getElementById('myHistoryList').innerHTML=rows.length?rows.map(r=>`<div class="history-item"><div><b>${escapeHtml(r.surveyTitle)}</b><small>${new Date(r.createdAt).toLocaleString('zh-TW')}</small></div><span class="quality-badge ok">已完成</span></div>`).join(''):'<div class="empty-inline">尚無已完成問卷</div>'}
+function refreshAll(){const data=getResponses();document.getElementById('statResponses').textContent=data.length;document.getElementById('statScore').textContent=data.length?Math.round(data.reduce((s,r)=>s+r.analysis.score,0)/data.length):'—';document.getElementById('heroScore').textContent=data.length?Math.round(data.reduce((s,r)=>s+r.analysis.score,0)/data.length):'—';document.getElementById('statReview').textContent=data.filter(r=>r.analysis.review).length;document.getElementById('statText').textContent=data.length*2;document.getElementById('surveyResponseCount').textContent=data.filter(r=>r.surveyId==='student-course').length;document.getElementById('responseRows').innerHTML=data.length?data.map((r,i)=>`<tr><td>#${data.length-i}</td><td>${r.role==='teacher'?'教師':'學生'}</td><td>${escapeHtml(r.surveyTitle)}</td><td>${new Date(r.createdAt).toLocaleString('zh-TW')}</td><td>${r.duration}s</td><td><b>${r.analysis.score}</b></td><td><span class="quality-badge ${r.analysis.review?'warn':'ok'}">${r.analysis.review?'建議複核':'品質正常'}</span></td></tr>`).join(''):'<tr><td colspan="7">尚無回饋紀錄</td></tr>';const sel=document.getElementById('analysisSelect');sel.innerHTML=data.length?data.map((r,i)=>`<option value="${r.id}">${r.role==='teacher'?'教師':'學生'} · ${r.surveyTitle} · #${data.length-i}</option>`).join(''):'<option>尚無資料</option>';renderAnalysis(data[0]);renderMyHistory()}
+function renderAnalysis(r){document.getElementById('analysisEmpty').classList.toggle('hidden',!!r);document.getElementById('analysisContent').classList.toggle('hidden',!r);if(!r)return;const a=r.analysis;document.getElementById('qualityScore').textContent=a.score;document.querySelector('.score-ring.small').style.setProperty('--score',a.score+'%');const badge=document.getElementById('qualityBadge');badge.textContent=a.review?'建議人工複核':'品質正常';badge.className='quality-badge '+(a.review?'warn':'ok');document.getElementById('qualityTitle').textContent=a.review?'偵測到多項需要留意的品質指標':'目前未偵測到重大填答異常';document.getElementById('qualitySummary').textContent=a.review?`本回覆觸發 ${a.flags} 項品質指標。系統僅提供異常訊號，最終是否排除資料仍應由管理者依規範判斷。`:'本回覆通過目前的規則型品質檢查，可進一步搭配 AI 語意分析文字意見。';document.getElementById('indicators').innerHTML=a.indicators.map(x=>`<div class="indicator"><div class="indicator-top"><span class="kicker">${x.en}</span><span class="quality-badge ${x.bad?'warn':'ok'}">${x.bad?'需留意':'正常'}</span></div><h4>${x.name}</h4><p>${x.detail}</p></div>`).join('');document.getElementById('textAnalysis').innerHTML=a.text.responses.map(t=>`<div class="text-card" style="margin-bottom:10px"><blockquote>「${escapeHtml(t)}」</blockquote><div class="chips"><span class="chip">回答長度：${t.trim().length} 字</span><span class="chip">本機規則檢查</span><span class="chip">待 AI API 語意分析</span></div></div>`).join('')+`<p class="muted small-text">${a.text.note}</p>`}
+document.getElementById('analysisSelect').addEventListener('change',e=>renderAnalysis(getResponses().find(r=>String(r.id)===e.target.value)));
+function goTo(id){if(currentRole!=='admin'&&['adminDashboard','surveyManagement','responses','analysis'].includes(id))return;if(currentRole==='admin'&&['frontHome','survey','myHistory'].includes(id))return;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const page=document.getElementById(id);if(page)page.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));document.getElementById('pageTitle').textContent=pageTitles[id]||'QSchool';if(id==='myHistory')renderMyHistory();window.scrollTo(0,0)}
+function resetSurvey(){document.getElementById('surveyForm').reset();startedAt=Date.now();updateProgress()}
+function clearResponses(){if(confirm('確定清除所有本機示範資料？')){localStorage.removeItem('qschool_responses');refreshAll();toast('示範資料已清除')}}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+refreshAll();
