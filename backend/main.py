@@ -80,3 +80,27 @@ def review(rid:int,r:ReviewIn):
  d=load(); item=next((x for x in d["responses"] if x["id"]==rid),None)
  if not item: raise HTTPException(404,"response not found")
  item["analysis"]["review_status"]=r.status; item["analysis"]["review_note"]=r.note; save(d); return item
+
+def aggregate_topics(responses):
+ rules=[
+  ("講課速度太快",["太快","講太快","速度太快","跟不上","來不及","節奏太快"]),
+  ("作業量／難度",["作業太多","作業很多","作業難","太難","負擔","作業量"]),
+  ("說明不夠清楚",["聽不懂","不清楚","講不清楚","說明不清楚","難理解"]),
+  ("希望增加互動",["互動","討論","問答","參與"]),
+  ("希望增加實作",["實作","實際操作","練習","案例","示範","prototype"]),
+  ("系統／行政流程",["系統","行政","流程","通知","操作","申請"])]
+ out=[]
+ for label,terms in rules:
+  matched=[]
+  for r in responses:
+   texts=[str(v) for v in r.get("answers",{}).values() if isinstance(v,str) and not v.isdigit()]
+   if any(any(k in t for k in terms) for t in texts): matched.append(r)
+  if matched:
+   out.append({"topic":label,"count":len(matched),"rate":round(len(matched)/max(len(responses),1)*100),"examples":[next((str(v) for v in x.get("answers",{}).values() if isinstance(v,str) and any(k in str(v) for k in terms)),"") for x in matched[:2]]})
+ return sorted(out,key=lambda x:x["count"],reverse=True)
+@app.get("/api/analytics/summary")
+def analytics_summary(survey_id:str|None=None):
+ d=load(); rows=d["responses"]
+ if survey_id: rows=[r for r in rows if r.get("surveyId")==survey_id]
+ valid=[r for r in rows if not r.get("analysis",{}).get("review")] or rows
+ return {"responses":len(rows),"valid_responses":len(valid),"review_required":sum(1 for r in rows if r.get("analysis",{}).get("review")),"topics":aggregate_topics(valid)}
